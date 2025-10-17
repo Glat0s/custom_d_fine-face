@@ -1,0 +1,148 @@
+project_name: widerface_training # for wandb
+exp_name: widerface_dfine_1024 # experiment name
+
+exp: ${exp_name}_${now_dir}
+
+model_name: n # Or any other model size (n, s, m, l, x)
+model_type: deim
+
+train:
+  ### Paths ###
+  root: dataset/yolo-widerface # ADJUST THIS: project root with dataset and outputs
+  pretrained_dataset: coco
+  pretrained_model_path: pretrained/dfine_${model_name}_${train.pretrained_dataset}.pth
+
+  data_path: ${train.root}/dataset # path to the unified dataset folder
+  path_to_test_data: ${train.root}/dataset/images  # Can be the same for inference
+  path_to_save: ${train.root}/output/models/${exp} # where to save output
+
+  debug_img_path: ${train.root}/output/debug_images
+  eval_preds_path: ${train.root}/output/eval_preds
+  bench_img_path: ${train.root}/output/bench_imgs
+  infer_path: ${train.root}/output/infer
+
+  ### Configs ###
+  use_wandb: False
+  device: cuda
+  label_to_name: # UPDATED for one class
+    0: face
+  use_one_class: True # SET TO TRUE to map all classes to 0
+
+  img_size: [1024, 1024] # UPDATED for 1024 width
+  keep_ratio: True # SET TO TRUE to handle variable height
+  to_visualize_eval: True
+  debug_img_processing: True
+
+  amp_enabled: True
+  clip_max_norm: 0.1
+
+  batch_size: 8 # ADJUST based on your GPU memory
+  b_accum_steps: 2 # ADJUST based on your GPU memory
+  epochs: 100
+  early_stopping: 10
+  ignore_background_epochs: 0
+  num_workers: 12
+
+  ### DEIM Specific Configs (if used) ###
+  deim:
+    use_uni_set: True
+    mal_gamma: 1.5
+    lr_gamma: 0.5
+    warmup_iter: 2000
+    flat_epoch: 29
+    no_aug_epoch: 8
+
+  ### Validation ###
+  conf_thresh: 0.5
+  iou_thresh: 0.5
+
+  ### EMA ###
+  use_ema: True
+  ema_momentum: 0.9998
+
+  ### Optimizer and Scheduler ###
+  base_lr: ${train.lrs.${model_name}.base_lr}
+  backbone_lr: ${train.lrs.${model_name}.backbone_lr}
+  cycler_pct_start: 0.1
+  weight_decay: 0.000125
+  betas: [0.9, 0.999]
+  label_smoothing: 0.0
+
+  ### Augs ###
+  mosaic_augs:
+    mosaic_prob: 0.8
+    no_mosaic_epochs: 5
+    mosaic_scale: [0.5, 1.5]
+    degrees: 0.0
+    translate: 0.2
+    shear: 2.0
+
+  augs:
+    rotation_degree: 10
+    rotation_p: 0.0
+    multiscale_prob: 0.0
+    rotate_90: 0.05
+    left_right_flip: 0.3
+    up_down_flip: 0.0
+    to_gray: 0.01
+    blur: 0.01
+    gamma: 0.02
+    brightness: 0.02
+    noise: 0.01
+    coarse_dropout: 0.0
+
+  ### Reproducibility ###
+  seed: 42
+  cudnn_fixed: False
+
+  ### Recommended learning rates ###
+  # (No changes needed here unless you want to experiment)
+  lrs:
+    n:
+      backbone_lr: 0.0004
+      base_lr: 0.0008
+    s:
+      backbone_lr: 0.00006
+      base_lr: 0.00025
+    m:
+      backbone_lr: 0.00002
+      base_lr: 0.00015
+    l:
+      backbone_lr: 0.00000625
+      base_lr: 0.000125
+    x:
+      backbone_lr: 0.0000015
+      base_lr: 0.0001
+
+split:
+  ignore_negatives: False # only use images with labels
+  shuffle: True
+  train_split: 0.85
+  val_split: 0.15 # test_split = 1 - train_split - val_split
+
+
+export: # TensorRT must be done on the inference device
+  half: False # torch, tensorrt
+  max_batch_size: 1 # torch, tensorrt
+  dynamic_input: False # torch, openvino cpu only
+
+
+infer:
+  to_crop: True  # if True - saves crops of detected objects
+  paddings: # if int - amount of pixes, if float - percentage of image size
+    w: 0.05
+    h: 0.05
+
+
+### service ###
+defaults:
+  - _self_
+  - override hydra/hydra_logging: disabled
+  - override hydra/job_logging: disabled
+
+hydra:
+  output_subdir: null
+  run:
+    dir: .
+
+now_dir: &nowdir ${now:%Y-%m-%d}
